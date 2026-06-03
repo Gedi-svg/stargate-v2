@@ -1,5 +1,38 @@
 # @stargatefinance/stg-evm-v2
 
+## 8.0.4
+
+### Patch Changes
+
+- e4fa3e0: Deploy Mintable Burnable Credit Messaging in Ethereum
+- Updated dependencies [e4fa3e0]
+  - @stargatefinance/stg-definitions-v2@7.0.7
+
+## 8.0.3
+
+### Patch Changes
+
+- 967e5c0: Rayls WETH deployment
+- Updated dependencies [967e5c0]
+  - @stargatefinance/stg-definitions-v2@7.0.6
+
+## 8.0.2
+
+### Patch Changes
+
+- fadb7d3: Rayls Deployment
+- Updated dependencies [fadb7d3]
+  - @stargatefinance/stg-definitions-v2@7.0.5
+
+## 8.0.1
+
+### Patch Changes
+
+- 8556e53: Fixing duplicate transactions when configuring more than one chain
+- ed0be06: deployed SubtensorEVM Mainnet and Ault Mainnet
+- Updated dependencies [ed0be06]
+  - @stargatefinance/stg-definitions-v2@7.0.2
+
 ## 8.0.0
 
 ### Major Changes

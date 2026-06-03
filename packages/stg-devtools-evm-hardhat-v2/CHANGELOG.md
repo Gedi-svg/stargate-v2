@@ -1,5 +1,41 @@
 # @stargatefinance/stg-devtools-evm-hardhat-v2
 
+## 11.0.4
+
+### Patch Changes
+
+- e4fa3e0: Deploy Mintable Burnable Credit Messaging in Ethereum
+- Updated dependencies [e4fa3e0]
+  - @stargatefinance/stg-definitions-v2@7.0.7
+  - @stargatefinance/stg-devtools-v2@10.0.5
+
+## 11.0.3
+
+### Patch Changes
+
+- 967e5c0: Rayls WETH deployment
+- Updated dependencies [967e5c0]
+  - @stargatefinance/stg-definitions-v2@7.0.6
+  - @stargatefinance/stg-devtools-v2@10.0.4
+
+## 11.0.2
+
+### Patch Changes
+
+- fadb7d3: Rayls Deployment
+- Updated dependencies [fadb7d3]
+  - @stargatefinance/stg-definitions-v2@7.0.5
+  - @stargatefinance/stg-devtools-v2@10.0.3
+
+## 11.0.1
+
+### Patch Changes
+
+- ed0be06: deployed SubtensorEVM Mainnet and Ault Mainnet
+- Updated dependencies [ed0be06]
+  - @stargatefinance/stg-definitions-v2@7.0.2
+  - @stargatefinance/stg-devtools-v2@10.0.2
+
 ## 11.0.0
 
 ### Major Changes

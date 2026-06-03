@@ -1,5 +1,41 @@
 # @stargatefinance/stg-definitions-v2
 
+## 7.0.7
+
+### Patch Changes
+
+- e4fa3e0: Deploy Mintable Burnable Credit Messaging in Ethereum
+
+## 7.0.6
+
+### Patch Changes
+
+- 967e5c0: Rayls WETH deployment
+
+## 7.0.5
+
+### Patch Changes
+
+- fadb7d3: Rayls Deployment
+
+## 7.0.4
+
+### Patch Changes
+
+- cc19c4c: Disabling bus for ault
+
+## 7.0.3
+
+### Patch Changes
+
+- 45c5cab: Add canary DVN to the paths toward a 3/3 DVN configuration, with existing per-path overrides preserved
+
+## 7.0.2
+
+### Patch Changes
+
+- ed0be06: deployed SubtensorEVM Mainnet and Ault Mainnet
+
 ## 7.0.1
 
 ### Patch Changes
