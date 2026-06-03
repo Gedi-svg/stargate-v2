@@ -8,13 +8,28 @@ import { ICreditMessagingHandler, Credit } from "../interfaces/ICreditMessagingH
 import { CreditMsgCodec, CreditBatch } from "../libs/CreditMsgCodec.sol";
 import { CreditMessagingOptions } from "./CreditMessagingOptions.sol";
 import { MessagingBase, Origin } from "./MessagingBase.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract CreditMessaging is MessagingBase, CreditMessagingOptions, ICreditMessaging {
-    constructor(address _endpoint, address _owner) MessagingBase(_endpoint, _owner) {}
+    
+    constructor(address _endpoint, address _owner) MessagingBase(_endpoint, _owner) Ownable(_owner) {}
+    
+    receive() external payable  {}
+    fallback() external payable  {}
+    
+    function addressToBytes32(address _addr) internal pure returns (bytes32) {
+        return bytes32(uint256(uint160(_addr)));
+    }
+    
 
+    function withdraw(address payable _to, uint256 _amount) external onlyOwner {
+        require(_amount <= address(this).balance, "Insufficient balance");
+        (bool ok, ) = _to.call{value: _amount}("");
+        require(ok, "Withdraw failed");
+    }
     // ---------------------------------- Only Planner ------------------------------------------
 
-    function sendCredits(uint32 _dstEid, TargetCreditBatch[] calldata _creditBatches) external payable onlyPlanner {
+    function sendCredits(uint32 _dstEid, TargetCreditBatch[] calldata _creditBatches) external payable virtual onlyPlanner {
         CreditBatch[] memory batches = new CreditBatch[](_creditBatches.length);
         uint256 index = 0;
         uint128 totalCreditNum = 0; // total number of credits in all batches
@@ -43,7 +58,7 @@ contract CreditMessaging is MessagingBase, CreditMessagingOptions, ICreditMessag
     function quoteSendCredits(
         uint32 _dstEid,
         TargetCreditBatch[] calldata _creditBatches
-    ) external view returns (MessagingFee memory fee) {
+    ) external view virtual returns (MessagingFee memory fee) {
         CreditBatch[] memory creditBatches = new CreditBatch[](_creditBatches.length);
         uint128 creditNum = 0; // used for message encoding
         for (uint256 i = 0; i < _creditBatches.length; i++) {
@@ -60,8 +75,28 @@ contract CreditMessaging is MessagingBase, CreditMessagingOptions, ICreditMessag
         fee = _quote(_dstEid, message, options, false);
     }
 
-    // ---------------------------------- OApp Functions ------------------------------------------
+    
+    function receiveCredits(
+        uint32 _srcEid,
+        TargetCreditBatch[] calldata _creditBatches
+    ) external virtual onlyPlanner {
+        // Convert TargetCreditBatch (external format) to Credit[] and forward to the
+        // corresponding Stargate implementation. The previous implementation used
+        // an uninitialized array which caused assetId==0 and reverted with
+        // Messaging_Unavailable().
+        for (uint256 i = 0; i < _creditBatches.length; i++) {
+            TargetCreditBatch calldata tb = _creditBatches[i];
+            TargetCredit[] calldata tcredits = tb.credits;
+            Credit[] memory credits = new Credit[](tcredits.length);
+            for (uint256 j = 0; j < tcredits.length; j++) {
+                credits[j] = Credit(tcredits[j].srcEid, tcredits[j].amount);
+            }
+            ICreditMessagingHandler(_safeGetStargateImpl(tb.assetId)).receiveCredits(_srcEid, credits);
+        }
 
+    }
+    // ---------------------------------- OApp Functions ------------------------------------------
+    
     function _lzReceive(
         Origin calldata _origin,
         bytes32 /*_guid*/,

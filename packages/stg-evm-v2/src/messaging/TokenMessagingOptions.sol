@@ -4,13 +4,13 @@ pragma solidity ^0.8.22;
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 import { OAppOptionsType3 } from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/libs/OAppOptionsType3.sol";
-
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 struct GasLimit {
     uint128 gasLimit;
     uint128 nativeDropGasLimit;
 }
 
-contract TokenMessagingOptions is OAppOptionsType3 {
+abstract contract TokenMessagingOptions is OAppOptionsType3 {
     uint8 public constant MSG_TYPE_TAXI = 1;
     uint8 public constant MSG_TYPE_BUS = 2;
 
@@ -27,6 +27,7 @@ contract TokenMessagingOptions is OAppOptionsType3 {
 
     error MessagingOptions_ZeroGasLimit();
 
+    constructor() {}
     function setGasLimit(uint32 _eid, uint128 _gasLimit, uint128 _nativeDropGasLimit) external onlyOwner {
         gasLimits[_eid] = GasLimit(_gasLimit, _nativeDropGasLimit);
         emit GasLimitSet(_eid, _gasLimit, _nativeDropGasLimit);

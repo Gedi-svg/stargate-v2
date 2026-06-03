@@ -53,7 +53,7 @@ contract FeeLibV1 is Ownable, IStargateFeeLib {
         _;
     }
 
-    constructor(address _stargate) {
+    constructor(address _stargate, address _owner) Ownable(_owner) {
         stargate = _stargate;
         stargateType = IStargate(_stargate).stargateType();
     }

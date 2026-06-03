@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.0;
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title An interface for minting and burning ERC20s.
 /// @dev Implemented by OFT contracts.
-interface IERC20Minter {
+interface IERC20Minter is IERC20 {
     /// @notice Mint tokens and transfer them to the given account.
     /// @param _to The account to mint the tokens to
     /// @param _amount How many tokens to mint

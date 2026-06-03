@@ -2,7 +2,7 @@
 pragma solidity ^0.8.22;
 
 import { OAppOptionsType3 } from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/libs/OAppOptionsType3.sol";
-import { Buffer } from "@ensdomains/buffer/contracts/Buffer.sol";
+import { Buffer } from "./Buffer.sol";
 
 /// @title Credit Messaging implementation of OAppOptionsType3
 /// @notice This contract is used to build options for the CreditMessaging OApp.

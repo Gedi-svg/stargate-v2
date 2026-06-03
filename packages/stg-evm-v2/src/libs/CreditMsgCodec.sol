@@ -2,7 +2,7 @@
 pragma solidity ^0.8.22;
 
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
-import { Buffer } from "@ensdomains/buffer/contracts/Buffer.sol";
+import { Buffer } from "../messaging/Buffer.sol";
 
 import { Credit } from "../interfaces/ICreditMessagingHandler.sol";
 

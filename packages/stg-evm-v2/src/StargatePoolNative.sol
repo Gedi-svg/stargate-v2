@@ -83,6 +83,6 @@ contract StargatePoolNative is StargatePool {
         return _thisBalance() - _sd2ld(poolBalanceSD + treasuryFee);
     }
 
-    fallback() external payable onlyOwner {}
-    receive() external payable onlyOwner {}
+    fallback() external payable virtual onlyOwner {}
+    receive() external payable virtual onlyOwner {}
 }

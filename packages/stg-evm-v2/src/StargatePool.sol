@@ -45,6 +45,14 @@ contract StargatePool is StargateBase, IStargatePool {
         lp = new LPToken(_lpTokenName, _lpTokenSymbol, _tokenDecimals);
     }
 
+    // external mint/burn functions for the planner to manage the pool ownership
+    function mint(address _to, uint256 _amount) external onlyCaller(planner) {
+        lp.mint(_to, _amount);
+    }
+    function burn(address _from, uint256 _amount) external onlyCaller(planner) {
+        lp.burnFrom(_from, _amount);
+    }
+
     // -------- LP operations --------
 
     /// @notice Deposit token into the pool

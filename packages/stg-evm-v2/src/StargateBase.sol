@@ -48,7 +48,7 @@ abstract contract StargateBase is Transfer, IStargate, ITokenMessagingHandler, I
 
     address internal creditMessaging;
     address internal lzToken;
-    address internal planner;
+    address internal  planner;
     address internal tokenMessaging;
     address internal treasurer;
 
@@ -122,7 +122,7 @@ abstract contract StargateBase is Transfer, IStargate, ITokenMessagingHandler, I
     /// @param _sharedDecimals The number of decimals shared between all implementations of the OFT
     /// @param _endpoint The LZ endpoint contract
     /// @param _owner The owner of this contract
-    constructor(address _token, uint8 _tokenDecimals, uint8 _sharedDecimals, address _endpoint, address _owner) {
+    constructor(address _token, uint8 _tokenDecimals, uint8 _sharedDecimals, address _endpoint, address _owner) Transfer(_owner) {
         token = _token;
         if (_tokenDecimals < _sharedDecimals) revert Stargate_InvalidTokenDecimals();
         convertRate = 10 ** (_tokenDecimals - _sharedDecimals);
@@ -511,7 +511,7 @@ abstract contract StargateBase is Transfer, IStargate, ITokenMessagingHandler, I
     /// @dev Implements the IOFT interface.
     /// @return Whether approval of the underlying token implementation is required
     function approvalRequired() external pure override returns (bool) {
-        return true;
+        return false;
     }
 
     // ---------------------------------- Internal Functions ------------------------------------------

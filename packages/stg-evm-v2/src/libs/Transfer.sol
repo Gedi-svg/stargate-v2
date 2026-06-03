@@ -8,7 +8,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 contract Transfer is Ownable {
     error Transfer_TransferFailed();
     error Transfer_ApproveFailed();
-
+    constructor(address initialOwner) Ownable(initialOwner) {}
     // @dev default this to 2300, but it is modifiable
     // @dev this is intended to provide just enough gas to receive native tokens.
     // @dev ie. empty fallbacks or EOA addresses

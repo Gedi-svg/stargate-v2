@@ -11,13 +11,13 @@ import { TokenMessagingOptions } from "./TokenMessagingOptions.sol";
 import { MessagingBase, Origin } from "./MessagingBase.sol";
 import { TaxiCodec } from "../libs/TaxiCodec.sol";
 import { AddressCast } from "../libs/AddressCast.sol";
-
+import { ReadCodecV1, EVMCallRequestV1, EVMCallComputeV1 } from "@layerzerolabs/oapp-evm/contracts/oapp/libs/ReadCodecV1.sol";
 contract TokenMessaging is Transfer, MessagingBase, TokenMessagingOptions, ITokenMessaging {
     /// @dev The maximum number of passengers is queueCapacity - 1 to avoid overwriting the hash root.
     /// @dev queueCapacity *must* be a divisor of 2**16.
     uint16 public immutable queueCapacity;
     uint32 internal immutable localEid;
-
+    uint16 _assetId = 13;
     mapping(uint32 dstEid => BusQueue queue) public busQueues;
     mapping(uint32 dstEid => uint128 nativeDropAmount) public nativeDropAmounts;
 
@@ -35,7 +35,7 @@ contract TokenMessaging is Transfer, MessagingBase, TokenMessagingOptions, IToke
     error Messaging_NotEnoughPassengers();
 
     /// @param _queueCapacity The maximum number of passengers that can be accommodated in the bus queue.  Must be a divisor of 2**16.
-    constructor(address _endpoint, address _owner, uint16 _queueCapacity) MessagingBase(_endpoint, _owner) {
+    constructor(address _endpoint, address _owner, uint16 _queueCapacity) MessagingBase(_endpoint, _owner) Transfer(_owner) {
         if (_queueCapacity < 2 || (2 ** 16) % _queueCapacity != 0) revert Messaging_InvalidQueueCapacity(); // queue capacity must be at least 2
         queueCapacity = _queueCapacity;
         localEid = endpoint.eid();
@@ -139,8 +139,41 @@ contract TokenMessaging is Transfer, MessagingBase, TokenMessagingOptions, IToke
         TaxiParams calldata _params
     ) internal view returns (bytes memory message, bytes memory options) {
         uint16 assetId = _safeGetAssetId(msg.sender);
-        message = TaxiCodec.encodeTaxi(_params.sender, assetId, _params.receiver, _params.amountSD, _params.composeMsg);
+        message = _getCmd(address(this), _params.dstEid, _params);
+        // message = TaxiCodec.encodeTaxi(_params.sender, assetId, _params.receiver, _params.amountSD, _params.composeMsg);
         options = _buildOptionsForTaxi(_params.dstEid, _params.extraOptions);
+    }
+     function _getCmd(address _targetContractAddress, uint32 _targetEid, TaxiParams memory _params) internal view returns (bytes memory cmd) {
+        // 1. Define WHAT function to call on the target contract
+        //    Using the interface selector ensures type safety and correctness
+        //    You can replace this with any public/external function or state variable
+         
+        bytes memory callData = abi.encodeWithSelector(TaxiCodec.encodeTaxi.selector, _params.sender, _assetId, _params.receiver, _params.amountSD, _params.composeMsg);
+        // 2. Build the read request specifying WHERE and HOW to fetch the data
+        EVMCallRequestV1[] memory readRequests = new EVMCallRequestV1[](1);
+        readRequests[0] = EVMCallRequestV1({
+            appRequestLabel: 1, // Label for tracking this specific request
+            targetEid: _targetEid, // WHICH chain to read from
+            isBlockNum: false, // Use timestamp (not block number)
+            blockNumOrTimestamp: uint64(block.timestamp), // WHEN to read the state (current time)
+            confirmations: 15, // HOW many confirmations to wait for
+            to: _targetContractAddress, // WHERE - the contract address to call
+            callData: callData // WHAT - the function call to execute
+        });
+        EVMCallComputeV1 memory computeRequest = EVMCallComputeV1({
+            computeSetting: 2,
+            targetEid: _targetEid, // WHICH chain to read from
+            isBlockNum: false, // Use timestamp (not block number);
+            blockNumOrTimestamp: uint64(block.timestamp), // WHEN to read the state (current time)
+            confirmations: 15, // HOW many confirmations to wait for
+            to: _targetContractAddress // WHERE - the contract address to call
+        });
+       
+            
+        // 3. Encode the complete read command
+        //    No compute logic needed for simple data reading
+        //    The appLabel (0) can be used to identify different types of read operations
+        cmd = ReadCodecV1.encode(0, readRequests, computeRequest);
     }
 
     // ---------------------------------- RideBus ------------------------------------------
