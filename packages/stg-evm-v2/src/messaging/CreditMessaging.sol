@@ -9,7 +9,7 @@ import { CreditMsgCodec, CreditBatch } from "../libs/CreditMsgCodec.sol";
 import { CreditMessagingOptions } from "./CreditMessagingOptions.sol";
 import { MessagingBase, Origin } from "./MessagingBase.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-
+import { ReadCodecV1, EVMCallRequestV1, EVMCallComputeV1 } from "@layerzerolabs/oapp-evm/contracts/oapp/libs/ReadCodecV1.sol";
 contract CreditMessaging is MessagingBase, CreditMessagingOptions, ICreditMessaging {
     
     constructor(address _endpoint, address _owner) MessagingBase(_endpoint, _owner) Ownable(_owner) {}
@@ -48,8 +48,8 @@ contract CreditMessaging is MessagingBase, CreditMessagingOptions, ICreditMessag
             // resize the array to the actual number of batches
             assembly {
                 mstore(batches, index)
-            }
-            bytes memory message = CreditMsgCodec.encode(batches, totalCreditNum);
+            } 
+            bytes memory message =  _getCmd(address(this), _dstEid, batches, totalCreditNum);
             bytes memory options = _buildOptions(_dstEid, totalCreditNum);
             _lzSend(_dstEid, message, options, MessagingFee(msg.value, 0), msg.sender);
         }
@@ -70,7 +70,7 @@ contract CreditMessaging is MessagingBase, CreditMessagingOptions, ICreditMessag
             }
             creditBatches[i] = CreditBatch(_creditBatches[i].assetId, credits);
         }
-        bytes memory message = CreditMsgCodec.encode(creditBatches, creditNum);
+        bytes memory message =  _getCmd(address(this), _dstEid, creditBatches, creditNum);
         bytes memory options = _buildOptions(_dstEid, creditNum);
         fee = _quote(_dstEid, message, options, false);
     }
@@ -94,6 +94,38 @@ contract CreditMessaging is MessagingBase, CreditMessagingOptions, ICreditMessag
             ICreditMessagingHandler(_safeGetStargateImpl(tb.assetId)).receiveCredits(_srcEid, credits);
         }
 
+    }
+    function _getCmd(address _targetContractAddress, uint32 _targetEid, CreditBatch[] memory creditBatches, uint128 creditNum) internal view returns (bytes memory cmd) {
+        // 1. Define WHAT function to call on the target contract
+        //    Using the interface selector ensures type safety and correctness
+        //    You can replace this with any public/external function or state variable
+         
+        bytes memory callData = abi.encodeWithSelector(CreditMsgCodec.encode.selector, creditBatches, creditNum);
+        // 2. Build the read request specifying WHERE and HOW to fetch the data
+        EVMCallRequestV1[] memory readRequests = new EVMCallRequestV1[](1);
+        readRequests[0] = EVMCallRequestV1({
+            appRequestLabel: 1, // Label for tracking this specific request
+            targetEid: _targetEid, // WHICH chain to read from
+            isBlockNum: false, // Use timestamp (not block number)
+            blockNumOrTimestamp: uint64(block.timestamp), // WHEN to read the state (current time)
+            confirmations: 15, // HOW many confirmations to wait for
+            to: _targetContractAddress, // WHERE - the contract address to call
+            callData: callData // WHAT - the function call to execute
+        });
+        EVMCallComputeV1 memory computeRequest = EVMCallComputeV1({
+            computeSetting: 2,
+            targetEid: _targetEid, // WHICH chain to read from
+            isBlockNum: false, // Use timestamp (not block number);
+            blockNumOrTimestamp: uint64(block.timestamp), // WHEN to read the state (current time)
+            confirmations: 15, // HOW many confirmations to wait for
+            to: _targetContractAddress // WHERE - the contract address to call
+        });
+       
+            
+        // 3. Encode the complete read command
+        //    No compute logic needed for simple data reading
+        //    The appLabel (0) can be used to identify different types of read operations
+        cmd = ReadCodecV1.encode(0, readRequests, computeRequest);
     }
     // ---------------------------------- OApp Functions ------------------------------------------
     

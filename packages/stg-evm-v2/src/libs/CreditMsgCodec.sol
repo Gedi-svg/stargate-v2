@@ -35,7 +35,7 @@ library CreditMsgCodec {
     function encode(
         CreditBatch[] memory _creditBatches,
         uint256 _totalCreditNum
-    ) internal pure returns (bytes memory message) {
+    ) external pure returns (bytes memory message) {
         uint256 numBatches = _creditBatches.length;
         // batchNum(1) + batchNum * (assetId(2) + batchSize(1)) + creditNum * (srcEid(4) + amount(8))
         uint256 bufferSize = NUM_BATCHES_BYTE_WIDTH +
@@ -60,7 +60,7 @@ library CreditMsgCodec {
         message = buf.buf;
     }
 
-    function decode(bytes calldata _message) internal pure returns (CreditBatch[] memory creditBatches) {
+    function decode(bytes calldata _message) external pure returns (CreditBatch[] memory creditBatches) {
         uint8 batchNum = uint8(_message[0]);
         creditBatches = new CreditBatch[](batchNum);
         uint256 cursor = 1; // skip batchNum(1)
