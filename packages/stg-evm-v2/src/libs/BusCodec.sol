@@ -82,13 +82,13 @@ library BusCodec {
         uint128 _numNativeDrops, // the number of passengers whom have requested a native drop on the destination
         uint128 _nativeDropAmount, // amount per drop
         bytes memory _passengersBytes
-    ) internal pure returns (bytes memory busBytes) {
+    ) external pure returns (bytes memory busBytes) {
         busBytes = abi.encodePacked(MSG_TYPE_BUS, _numNativeDrops, _nativeDropAmount, _passengersBytes);
     }
 
     function decodeBus(
         bytes calldata _busBytes
-    ) internal pure returns (uint128 totalNativeDrops, uint128 nativeDropAmount, BusPassenger[] memory busPassengers) {
+    ) external pure returns (uint128 totalNativeDrops, uint128 nativeDropAmount, BusPassenger[] memory busPassengers) {
         // gas savings by loading to memory
         uint256 busBytesLength = _busBytes.length;
 

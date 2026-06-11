@@ -37,7 +37,7 @@ library TaxiCodec {
 
     function decodeTaxi(
         bytes calldata _taxiBytes
-    ) external pure returns (uint16 assetId, bytes32 receiver, uint64 amountSD, bytes memory composeMsg) {
+    ) internal pure returns (uint16 assetId, bytes32 receiver, uint64 amountSD, bytes memory composeMsg) {
         assetId = uint16(bytes2(_taxiBytes[MSG_TYPE_OFFSET:ASSET_ID_OFFSET]));
         receiver = bytes32(_taxiBytes[ASSET_ID_OFFSET:RECEIVER_OFFSET]);
         amountSD = uint64(bytes8(_taxiBytes[RECEIVER_OFFSET:AMOUNT_SD_OFFSET]));

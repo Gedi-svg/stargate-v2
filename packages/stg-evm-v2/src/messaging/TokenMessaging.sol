@@ -18,6 +18,8 @@ contract TokenMessaging is Transfer, MessagingBase, TokenMessagingOptions, IToke
     uint16 public immutable queueCapacity;
     uint32 internal immutable localEid;
     uint16 _assetId = 13;
+    uint32 public READ_CHANNEL;
+    
     mapping(uint32 dstEid => BusQueue queue) public busQueues;
     mapping(uint32 dstEid => uint128 nativeDropAmount) public nativeDropAmounts;
 
@@ -33,15 +35,29 @@ contract TokenMessaging is Transfer, MessagingBase, TokenMessagingOptions, IToke
     error Messaging_InvalidMsgValue();
     error Messaging_MaxNumPassengersExceedsQueueCapacity();
     error Messaging_NotEnoughPassengers();
-
+    error Messaging_InvalidMessage();
     /// @param _queueCapacity The maximum number of passengers that can be accommodated in the bus queue.  Must be a divisor of 2**16.
     constructor(address _endpoint, address _owner, uint16 _queueCapacity) MessagingBase(_endpoint, _owner) Transfer(_owner) {
         if (_queueCapacity < 2 || (2 ** 16) % _queueCapacity != 0) revert Messaging_InvalidQueueCapacity(); // queue capacity must be at least 2
         queueCapacity = _queueCapacity;
         localEid = endpoint.eid();
+        READ_CHANNEL = endpoint.eid();
+        // Establish read channel peer - contract processes its own compute functions
+        _setPeer(READ_CHANNEL, AddressCast.toBytes32(address(this)));
     }
 
     // ---------------------------------- Only Owner ------------------------------------------
+    /**
+     * @notice Configure the LayerZero read channel for compute-enabled operations
+     * @dev Owner-only function to activate/deactivate read channels with compute processing
+     * @param _channelId Read channel ID to configure
+     * @param _active Whether to activate (true) or deactivate (false) the channel
+    */
+    function setReadChannel(uint32 _channelId, bool _active) public override onlyOwner {
+        // Set or clear the peer relationship for compute-enabled read operations
+        _setPeer(_channelId, _active ? AddressCast.toBytes32(address(this)) : bytes32(0));
+        READ_CHANNEL = _channelId;
+    }
 
     function setMaxNumPassengers(uint32 _dstEid, uint8 _maxNumPassengers) external onlyOwner {
         if (_maxNumPassengers >= queueCapacity) revert Messaging_MaxNumPassengersExceedsQueueCapacity();
@@ -139,43 +155,12 @@ contract TokenMessaging is Transfer, MessagingBase, TokenMessagingOptions, IToke
         TaxiParams calldata _params
     ) internal view returns (bytes memory message, bytes memory options) {
         uint16 assetId = _safeGetAssetId(msg.sender);
-        message = _getCmd(address(this), _params.dstEid, _params);
+        message = _getCmdTaxi(address(this), _params.dstEid, _params);
         // message = TaxiCodec.encodeTaxi(_params.sender, assetId, _params.receiver, _params.amountSD, _params.composeMsg);
         options = _buildOptionsForTaxi(_params.dstEid, _params.extraOptions);
     }
-     function _getCmd(address _targetContractAddress, uint32 _targetEid, TaxiParams memory _params) internal view returns (bytes memory cmd) {
-        // 1. Define WHAT function to call on the target contract
-        //    Using the interface selector ensures type safety and correctness
-        //    You can replace this with any public/external function or state variable
-         
-        bytes memory callData = abi.encodeWithSelector(TaxiCodec.encodeTaxi.selector, _params.sender, _assetId, _params.receiver, _params.amountSD, _params.composeMsg);
-        // 2. Build the read request specifying WHERE and HOW to fetch the data
-        EVMCallRequestV1[] memory readRequests = new EVMCallRequestV1[](1);
-        readRequests[0] = EVMCallRequestV1({
-            appRequestLabel: 1, // Label for tracking this specific request
-            targetEid: _targetEid, // WHICH chain to read from
-            isBlockNum: false, // Use timestamp (not block number)
-            blockNumOrTimestamp: uint64(block.timestamp), // WHEN to read the state (current time)
-            confirmations: 15, // HOW many confirmations to wait for
-            to: _targetContractAddress, // WHERE - the contract address to call
-            callData: callData // WHAT - the function call to execute
-        });
-        EVMCallComputeV1 memory computeRequest = EVMCallComputeV1({
-            computeSetting: 2,
-            targetEid: _targetEid, // WHICH chain to read from
-            isBlockNum: false, // Use timestamp (not block number);
-            blockNumOrTimestamp: uint64(block.timestamp), // WHEN to read the state (current time)
-            confirmations: 15, // HOW many confirmations to wait for
-            to: _targetContractAddress // WHERE - the contract address to call
-        });
-       
-            
-        // 3. Encode the complete read command
-        //    No compute logic needed for simple data reading
-        //    The appLabel (0) can be used to identify different types of read operations
-        cmd = ReadCodecV1.encode(0, readRequests, computeRequest);
-    }
 
+   
     // ---------------------------------- RideBus ------------------------------------------
 
     function quoteRideBus(uint32 _dstEid, bool _airdrop) external view returns (MessagingFee memory fee) {
@@ -250,12 +235,126 @@ contract TokenMessaging is Transfer, MessagingBase, TokenMessagingOptions, IToke
     ) internal view returns (bytes memory message, bytes memory options) {
         // In the event that nativeDropAmount is zero, the transfer is skipped in _lzReceiveBus(...) on destination.
         uint128 nativeDropAmount = nativeDropAmounts[_dstEid];
-        message = BusCodec.encodeBus(_bus.totalNativeDrops, nativeDropAmount, _bus.passengersBytes);
+        message = _getCmdBus(address(this), _dstEid, nativeDropAmount, _bus);
+        //BusCodec.encodeBus(_bus.totalNativeDrops, nativeDropAmount, _bus.passengersBytes);
         options = _buildOptionsForDriveBus(_dstEid, _bus.numPassengers, _bus.totalNativeDrops, nativeDropAmount);
     }
 
-    // ---------------------------------- OApp Functions ------------------------------------------
+    function _getCmdTaxi(address _targetContractAddress, uint32 _targetEid, TaxiParams memory _params) internal view returns (bytes memory cmd) {
+        // 1. Define WHAT function to call on the target contract
+        //    Using the interface selector ensures type safety and correctness
+        //    You can replace this with any public/external function or state variable
+         
+        bytes memory callData = abi.encodeWithSelector(TaxiCodec.encodeTaxi.selector, _params.sender, _assetId, _params.receiver, _params.amountSD, _params.composeMsg);
+        // 2. Build the read request specifying WHERE and HOW to fetch the data
+        EVMCallRequestV1[] memory readRequests = new EVMCallRequestV1[](1);
+        readRequests[0] = EVMCallRequestV1({
+            appRequestLabel: 1, // Label for tracking this specific request
+            targetEid: _targetEid, // WHICH chain to read from
+            isBlockNum: false, // Use timestamp (not block number)
+            blockNumOrTimestamp: uint64(block.timestamp), // WHEN to read the state (current time)
+            confirmations: 15, // HOW many confirmations to wait for
+            to: _targetContractAddress, // WHERE - the contract address to call
+            callData: callData // WHAT - the function call to execute
+        });
+        EVMCallComputeV1 memory computeRequest = EVMCallComputeV1({
+            computeSetting: 2,
+            targetEid: _targetEid, // WHICH chain to read from
+            isBlockNum: false, // Use timestamp (not block number);
+            blockNumOrTimestamp: uint64(block.timestamp), // WHEN to read the state (current time)
+            confirmations: 15, // HOW many confirmations to wait for
+            to: _targetContractAddress // WHERE - the contract address to call
+        });
+       
+            
+        // 3. Encode the complete read command
+        //    No compute logic needed for simple data reading
+        //    The appLabel (0) can be used to identify different types of read operations
+        cmd = ReadCodecV1.encode(0, readRequests, computeRequest);
+    }
 
+    function _getCmdBus(address _targetContractAddress, uint32 _targetEid, uint128 nativeDrop, Bus memory _BusParams) internal view returns (bytes memory cmd) {
+        // 1. Define WHAT function to call on the target contract
+        //    Using the interface selector ensures type safety and correctness
+        //    You can replace this with any public/external function or state variable
+         
+        bytes memory callData = abi.encodeWithSelector(BusCodec.encodeBus.selector, _BusParams.totalNativeDrops, nativeDrop, _BusParams.passengersBytes);
+        // 2. Build the read request specifying WHERE and HOW to fetch the data
+        EVMCallRequestV1[] memory readRequests = new EVMCallRequestV1[](1);
+        readRequests[0] = EVMCallRequestV1({
+            appRequestLabel: 1, // Label for tracking this specific request
+            targetEid: _targetEid, // WHICH chain to read from
+            isBlockNum: false, // Use timestamp (not block number)
+            blockNumOrTimestamp: uint64(block.timestamp), // WHEN to read the state (current time)
+            confirmations: 15, // HOW many confirmations to wait for
+            to: _targetContractAddress, // WHERE - the contract address to call
+            callData: callData // WHAT - the function call to execute
+        });
+        EVMCallComputeV1 memory computeRequest = EVMCallComputeV1({
+            computeSetting: 2,
+            targetEid: _targetEid, // WHICH chain to read from
+            isBlockNum: false, // Use timestamp (not block number);
+            blockNumOrTimestamp: uint64(block.timestamp), // WHEN to read the state (current time)
+            confirmations: 15, // HOW many confirmations to wait for
+            to: _targetContractAddress // WHERE - the contract address to call
+        });
+       
+            
+        // 3. Encode the complete read command
+        //    No compute logic needed for simple data reading
+        //    The appLabel (0) can be used to identify different types of read operations
+        cmd = ReadCodecV1.encode(0, readRequests, computeRequest);
+    }
+
+    // ---------------------------------- OApp Functions ------------------------------------------
+    function lzMap(Origin calldata _origin, bytes32 _guid, bytes calldata _request, bytes calldata _response) external  {
+        // For simplicity, we assume the response is already in the desired format.
+        
+        bytes[] memory res;
+        res[0] = abi.decode(_response, (bytes));
+        
+        this.lzReduce(_origin, _guid, _request, res);
+        
+
+    }
+
+    function lzReduce( Origin calldata _origin, bytes32 _guid, bytes calldata _cmd, bytes[] calldata _responses) external {
+        bytes calldata resp;
+        //bytes firstResponse;
+        for (uint256 i = 0; i < _responses.length; i++) {
+            resp = _responses[i];
+            if (BusCodec.isBus(resp)) {
+                _lzReceiveBus(_origin, _guid, resp);
+            } else {
+                _lzReceiveTaxi(_origin, _guid, resp);
+            }
+        }
+       
+    }
+
+    function mapComposeMsg(bytes calldata _message, address _sender) external returns (bool mappedRes) {
+        bytes[] memory res;
+        res[0] = abi.decode(_message, (bytes));
+        
+        mappedRes = this.reduceComposeMsg(res, _sender);
+        
+        return mappedRes;
+    }
+
+    function reduceComposeMsg(bytes[] calldata _responses, address _sender) external returns (bool){
+        bytes calldata resp;
+        //bytes firstResponse;
+        for (uint256 i = 0; i < _responses.length; i++) {
+            resp = _responses[i];
+            if (TaxiCodec.isTaxi(resp)) {
+            (uint16 assetId, , , ) = TaxiCodec.decodeTaxi(resp);
+            if (stargateImpls[assetId] == _sender) return true;
+            }
+        
+        }
+        return false;
+
+    }
     function _lzReceive(
         Origin calldata _origin,
         bytes32 _guid,
@@ -263,11 +362,12 @@ contract TokenMessaging is Transfer, MessagingBase, TokenMessagingOptions, IToke
         address /*_executor*/,
         bytes calldata /*_extraData*/
     ) internal override {
-        if (BusCodec.isBus(_message)) {
+        this.lzMap(_origin, _guid, bytes(""), _message);
+       /* if (BusCodec.isBus(_message)) {
             _lzReceiveBus(_origin, _guid, _message);
         } else {
             _lzReceiveTaxi(_origin, _guid, _message);
-        }
+        }*/
     }
 
     function _lzReceiveBus(Origin calldata _origin, bytes32 _guid, bytes calldata _busBytes) internal {
@@ -325,12 +425,13 @@ contract TokenMessaging is Transfer, MessagingBase, TokenMessagingOptions, IToke
         Origin calldata /*_origin*/,
         bytes calldata _message,
         address _sender
-    ) public view override returns (bool) {
-        // only compose msgs can come from taxi, so if its not a taxi its false
+    ) public override returns (bool) {
+         
+        /*// only compose msgs can come from taxi, so if its not a taxi its false
         if (TaxiCodec.isTaxi(_message)) {
             (uint16 assetId, , , ) = TaxiCodec.decodeTaxi(_message);
             if (stargateImpls[assetId] == _sender) return true;
-        }
-        return false;
+        }*/
+        return this.mapComposeMsg(_message, _sender);
     }
 }

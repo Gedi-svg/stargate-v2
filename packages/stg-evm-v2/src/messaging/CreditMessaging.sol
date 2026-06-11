@@ -10,9 +10,17 @@ import { CreditMessagingOptions } from "./CreditMessagingOptions.sol";
 import { MessagingBase, Origin } from "./MessagingBase.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ReadCodecV1, EVMCallRequestV1, EVMCallComputeV1 } from "@layerzerolabs/oapp-evm/contracts/oapp/libs/ReadCodecV1.sol";
+import { AddressCast } from "@layerzerolabs/lz-evm-protocol-v2/contracts/libs/AddressCast.sol";
 contract CreditMessaging is MessagingBase, CreditMessagingOptions, ICreditMessaging {
+    uint32 public READ_CHANNEL;
     
-    constructor(address _endpoint, address _owner) MessagingBase(_endpoint, _owner) Ownable(_owner) {}
+    constructor(address _endpoint, address _owner) MessagingBase(_endpoint, _owner) Ownable(_owner) {
+        READ_CHANNEL = endpoint.eid();
+        // Establish read channel peer - contract processes its own compute functions
+        _setPeer(READ_CHANNEL, AddressCast.toBytes32(address(this)));
+        
+    }
+    
     
     receive() external payable  {}
     fallback() external payable  {}
@@ -26,6 +34,18 @@ contract CreditMessaging is MessagingBase, CreditMessagingOptions, ICreditMessag
         require(_amount <= address(this).balance, "Insufficient balance");
         (bool ok, ) = _to.call{value: _amount}("");
         require(ok, "Withdraw failed");
+    }
+
+    /**
+     * @notice Configure the LayerZero read channel for compute-enabled operations
+     * @dev Owner-only function to activate/deactivate read channels with compute processing
+     * @param _channelId Read channel ID to configure
+     * @param _active Whether to activate (true) or deactivate (false) the channel
+     */
+    function setReadChannel(uint32 _channelId, bool _active) public override onlyOwner {
+        // Set or clear the peer relationship for compute-enabled read operations
+        _setPeer(_channelId, _active ? AddressCast.toBytes32(address(this)) : bytes32(0));
+        READ_CHANNEL = _channelId;
     }
     // ---------------------------------- Only Planner ------------------------------------------
 
@@ -127,8 +147,33 @@ contract CreditMessaging is MessagingBase, CreditMessagingOptions, ICreditMessag
         //    The appLabel (0) can be used to identify different types of read operations
         cmd = ReadCodecV1.encode(0, readRequests, computeRequest);
     }
-    // ---------------------------------- OApp Functions ------------------------------------------
     
+        // ---------------------------------- OApp Functions ------------------------------------------
+     function lzMap(Origin calldata _origin, bytes32 _guid, bytes calldata _request, bytes calldata _response) external {
+        // For simplicity, we assume the response is already in the desired format.
+        bytes[] memory res;
+        res[0] = abi.decode(_response, (bytes));
+        
+       this.lzReduce(_origin, _guid, _request, res);
+        
+    }
+
+    function lzReduce(Origin calldata _origin, bytes32 _guid, bytes calldata _cmd, bytes[] calldata _responses) external  {
+       bytes calldata resp;
+       for (uint256 j = 0; j < _responses.length; j++) {
+            resp = _responses[j];
+            CreditBatch[] memory creditBatches = CreditMsgCodec.decode(resp);
+            uint256 batchNum = creditBatches.length;
+            for (uint256 i = 0; i < batchNum; i++) {
+                CreditBatch memory creditBatch = creditBatches[i];
+                ICreditMessagingHandler(_safeGetStargateImpl(creditBatch.assetId)).receiveCredits(
+                    _origin.srcEid,
+                    creditBatch.credits
+                );
+            }
+        }
+        
+    }
     function _lzReceive(
         Origin calldata _origin,
         bytes32 /*_guid*/,
@@ -136,6 +181,8 @@ contract CreditMessaging is MessagingBase, CreditMessagingOptions, ICreditMessag
         address /*_executor*/,
         bytes calldata /*_extraData*/
     ) internal override {
+        this.lzMap(_origin, bytes32(""), bytes(""), _message);
+        /*
         CreditBatch[] memory creditBatches = CreditMsgCodec.decode(_message);
         uint256 batchNum = creditBatches.length;
         for (uint256 i = 0; i < batchNum; i++) {
@@ -144,6 +191,6 @@ contract CreditMessaging is MessagingBase, CreditMessagingOptions, ICreditMessag
                 _origin.srcEid,
                 creditBatch.credits
             );
-        }
+        }*/
     }
 }

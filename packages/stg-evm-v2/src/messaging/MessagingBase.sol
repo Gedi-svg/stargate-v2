@@ -2,9 +2,11 @@
 pragma solidity ^0.8.22;
 
 import { OApp, Origin } from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OApp.sol";
+import { OAppRead } from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/OAppRead.sol";
+import { IOAppComputer } from "@layerzerolabs/lz-evm-oapp-v2/contracts/oapp/interfaces/IOAppComputer.sol";
 import { OAppPreCrimeSimulator } from "@layerzerolabs/lz-evm-oapp-v2/contracts/precrime/OAppPreCrimeSimulator.sol";
 
-abstract contract MessagingBase is OApp, OAppPreCrimeSimulator {
+abstract contract MessagingBase is OAppRead, OAppPreCrimeSimulator, IOAppComputer {
     // max asset id, for the off-chain to get the range of asset id and get the list of stargate impls
     uint16 public maxAssetId;
     mapping(address stargateImpl => uint16 assetId) public assetIds;
@@ -25,7 +27,7 @@ abstract contract MessagingBase is OApp, OAppPreCrimeSimulator {
         _;
     }
 
-    constructor(address _endpoint, address _owner) OApp(_endpoint, _owner) {}
+    constructor(address _endpoint, address _owner) OAppRead(_endpoint, _owner) {}
 
     // ---------------------------------- Only Owner ------------------------------------------
 
