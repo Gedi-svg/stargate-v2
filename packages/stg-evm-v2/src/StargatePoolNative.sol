@@ -35,7 +35,7 @@ contract StargatePoolNative is StargatePool {
     /// @param _amountLD The value to transfer in LD
     /// @return success Whether The transfer was successful
     function _outflow(address _to, uint256 _amountLD) internal override returns (bool success) {
-        success = Transfer.transferNative(_to, _amountLD, true);
+        success = Transfer.transferNative(_to, _amountLD, false);
     }
 
     /// @notice Send native coin to an account.

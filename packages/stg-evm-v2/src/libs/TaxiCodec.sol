@@ -1,3 +1,4 @@
+
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.22;
 
@@ -24,7 +25,7 @@ library TaxiCodec {
         bytes32 _receiver,
         uint64 _amountSD,
         bytes calldata _composeMsg
-    ) external pure returns (bytes memory _taxiBytes) {
+    ) internal pure returns (bytes memory _taxiBytes) {
         _taxiBytes = abi.encodePacked(
             MSG_TYPE_TAXI,
             _assetId,

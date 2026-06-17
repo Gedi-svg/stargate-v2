@@ -52,7 +52,8 @@ contract FeeLibV1 is Ownable, IStargateFeeLib {
         if (msg.sender != stargate) revert FeeLib_Unauthorized();
         _;
     }
-
+    receive() external payable  {}
+    fallback() external payable  {}
     constructor(address _stargate, address _owner) Ownable(_owner) {
         stargate = _stargate;
         stargateType = IStargate(_stargate).stargateType();
