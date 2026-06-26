@@ -48,8 +48,9 @@ contract CreditMessaging is MessagingBase, CreditMessagingOptions, ICreditMessag
         READ_CHANNEL = _channelId;
     }
     // ---------------------------------- Only Planner ------------------------------------------
+    // ---------------------------------- Only Planner ------------------------------------------
 
-    function sendCredits(uint32 _dstEid, TargetCreditBatch[] calldata _creditBatches) external payable virtual onlyPlanner {
+    function sendCredits(uint32 _dstEid, TargetCreditBatch[] calldata _creditBatches) external payable onlyPlanner {
         CreditBatch[] memory batches = new CreditBatch[](_creditBatches.length);
         uint256 index = 0;
         uint128 totalCreditNum = 0; // total number of credits in all batches
@@ -68,9 +69,8 @@ contract CreditMessaging is MessagingBase, CreditMessagingOptions, ICreditMessag
             // resize the array to the actual number of batches
             assembly {
                 mstore(batches, index)
-            } 
-            bytes memory message =  CreditMsgCodec.encode(batches, totalCreditNum);
-            //_getCmd(address(this), _dstEid, batches, totalCreditNum);
+            }
+            bytes memory message = CreditMsgCodec.encode(batches, totalCreditNum);
             bytes memory options = _buildOptions(_dstEid, totalCreditNum);
             _lzSend(_dstEid, message, options, MessagingFee(msg.value, 0), msg.sender);
         }
@@ -79,7 +79,7 @@ contract CreditMessaging is MessagingBase, CreditMessagingOptions, ICreditMessag
     function quoteSendCredits(
         uint32 _dstEid,
         TargetCreditBatch[] calldata _creditBatches
-    ) external view virtual returns (MessagingFee memory fee) {
+    ) external view returns (MessagingFee memory fee) {
         CreditBatch[] memory creditBatches = new CreditBatch[](_creditBatches.length);
         uint128 creditNum = 0; // used for message encoding
         for (uint256 i = 0; i < _creditBatches.length; i++) {
@@ -91,13 +91,12 @@ contract CreditMessaging is MessagingBase, CreditMessagingOptions, ICreditMessag
             }
             creditBatches[i] = CreditBatch(_creditBatches[i].assetId, credits);
         }
-        bytes memory message =  CreditMsgCodec.encode(creditBatches, creditNum);
+        bytes memory message = CreditMsgCodec.encode(creditBatches, creditNum);
         bytes memory options = _buildOptions(_dstEid, creditNum);
         fee = _quote(_dstEid, message, options, false);
     }
 
-    
-    function receiveCredits(
+     function receiveCredits(
         uint32 _srcEid,
         TargetCreditBatch[] calldata _creditBatches
     ) external virtual onlyPlanner {
@@ -116,62 +115,8 @@ contract CreditMessaging is MessagingBase, CreditMessagingOptions, ICreditMessag
         }
 
     }
-    /*
-    function _getCmd(address _targetContractAddress, uint32 _targetEid, CreditBatch[] memory creditBatches, uint128 creditNum) internal view returns (bytes memory cmd) {
-        // 1. Define WHAT function to call on the target contract
-        //    Using the interface selector ensures type safety and correctness
-        //    You can replace this with any public/external function or state variable
-         
-        bytes memory callData = abi.encodeWithSelector(this.encodeCredit.selector, creditBatches, creditNum);
-        // 2. Build the read request specifying WHERE and HOW to fetch the data
-        EVMCallRequestV1[] memory readRequests = new EVMCallRequestV1[](1);
-        readRequests[0] = EVMCallRequestV1({
-            appRequestLabel: 1, // Label for tracking this specific request
-            targetEid: _targetEid, // WHICH chain to read from
-            isBlockNum: false, // Use timestamp (not block number)
-            blockNumOrTimestamp: uint64(block.timestamp), // WHEN to read the state (current time)
-            confirmations: 15, // HOW many confirmations to wait for
-            to: _targetContractAddress, // WHERE - the contract address to call
-            callData: callData // WHAT - the function call to execute
-        });
-        EVMCallComputeV1 memory computeRequest = EVMCallComputeV1({
-            computeSetting: 2,
-            targetEid: _targetEid, // WHICH chain to read from
-            isBlockNum: false, // Use timestamp (not block number);
-            blockNumOrTimestamp: uint64(block.timestamp), // WHEN to read the state (current time)
-            confirmations: 15, // HOW many confirmations to wait for
-            to: _targetContractAddress // WHERE - the contract address to call
-        });
-        
-            
-        // 3. Encode the complete read command
-        //    No compute logic needed for simple data reading
-        //    The appLabel (0) can be used to identify different types of read operations
-        cmd = ReadCodecV1.encode(0, readRequests, computeRequest);
-    }
-     function encodeCredit(
-        CreditBatch[] memory creditBatches, 
-        uint128 creditNum
-    ) external pure returns (bytes memory) {
-        return CreditMsgCodec.encode(creditBatches, creditNum);
-    }
-        // ---------------------------------- OApp Functions ------------------------------------------
-    
-    function lzMap(bytes calldata _request, bytes calldata _response) external pure override returns (bytes memory) {
-        // Decode the raw return data from the target read call, which itself returns `bytes`.
-        // This unwraps the ABI-encoded `bytes` payload so the reduce stage receives the inner payload bytes.
-        return abi.decode(_response, (bytes));
-    }
+    // ---------------------------------- OApp Functions ------------------------------------------
 
-    
-    function lzReduce(bytes calldata _cmd, bytes[] calldata _responses) external pure override returns (bytes memory) {
-        bytes[] memory decoded = new bytes[](_responses.length);
-        for (uint256 i = 0; i < _responses.length; i++) {
-            decoded[i] = _responses[i];
-        }
-        return abi.encode(decoded);
-    }
-*/
     function _lzReceive(
         Origin calldata _origin,
         bytes32 /*_guid*/,
@@ -179,18 +124,15 @@ contract CreditMessaging is MessagingBase, CreditMessagingOptions, ICreditMessag
         address /*_executor*/,
         bytes calldata /*_extraData*/
     ) internal override {
-        // this.lzMap(_origin, bytes32(""), bytes(""), _message);
-        bytes[] memory responses = abi.decode(_message, (bytes[]));
-        for (uint256 j = 0; j < responses.length; j++) {
-            bytes memory encodedMessage = responses[j];
-            CreditBatch[] memory creditBatches = CreditMsgCodec.decode(encodedMessage);
-            uint256 batchNum = creditBatches.length;
-            for (uint256 i = 0; i < batchNum; i++) {
-                CreditBatch memory creditBatch = creditBatches[i];
-                ICreditMessagingHandler(_safeGetStargateImpl(creditBatch.assetId)).receiveCredits(
-                    _origin.srcEid,
-                    creditBatch.credits
-                );
-            }
+        CreditBatch[] memory creditBatches = CreditMsgCodec.decode(_message);
+        uint256 batchNum = creditBatches.length;
+        for (uint256 i = 0; i < batchNum; i++) {
+            CreditBatch memory creditBatch = creditBatches[i];
+            ICreditMessagingHandler(_safeGetStargateImpl(creditBatch.assetId)).receiveCredits(
+                _origin.srcEid,
+                creditBatch.credits
+            );
         }
-}   }
+    }
+   
+}
